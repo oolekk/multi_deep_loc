@@ -8,6 +8,7 @@ package code.lib
  * To change this template use File | Settings | File Templates.
  */
 
+import net.liftweb.util.Helpers._
 import net.liftweb._
 import http._
 import sitemap._
@@ -19,38 +20,61 @@ import sitemap.Menu.ParamsMenuable._
 
 case class Album(name: String)
 
-case class Foto(album: Album, name: String)
-
 case class Topic(album: Album, name: String)
 
+case class Foto(topic: Topic, name: String)
+
+
 object AlbumMenu {
-  // define the foto menu
-  lazy val foto = Menu.params[Foto]("Foto", "Foto", {
-    case album :: name :: Nil => Full(Foto(Album(album), name))
-    case _ => Empty
-  }, a => List(a.name)) / "foto" / * / *
+	
+  // define the foto menu with no further submenus
+  lazy val foto = Menu.params[Foto](
+		"Foto", 
+		Loc.LinkText(f => Text("Foto " + f.name)),
+		{
+			case album :: topic :: foto :: Nil =>
+				Full(Foto(Topic(Album(album), topic),foto))
+			case _ => Empty
+		}, f => List(f.topic.album.name, f.topic.name, f.name)) / "gallery" / * / * / *
+		
+		def currentFotoValue(): Box[Foto] = {
+			val uri = S.uri.split("/")
+			if(uri.length>4)Full(Foto(Topic(Album(uri(2)),uri(3)),uri(4)))
+			else Empty
+		}
 
-  // define the topic menu
-  lazy val topic = Menu.params[Topic]("Topic", "Topic", {
-    case album :: name :: Nil => Full(Topic(Album(album), name))
-    case _ => Empty
-  }, a => List(a.name)) / "topic" / * / *
+  // define the topic menu which has foto-s as submenus
+  lazy val topic = Menu.params[Topic](
+		"Topic",
+		Loc.LinkText(t => Text("Topic " + t.name)),
+		{
+			case album :: topic :: Nil => Full(Topic(Album(album), topic))
+			case _ => Empty
+		}, t => List(t.album.name, t.name)) / "gallery" / * / *  >>
+			Loc.CalcValue(currentTopicValue) submenus(foto)
 
-  // define the album which has topic and foto as children
-  lazy val album = Menu.params[Album]("Album", Loc.LinkText(album =>
-    Text("Album " + album.name)), {
-    case name :: Nil => Full(Album(name))
-    case _ => Empty
-  }, a => List(a.name)) / "album" >> Loc.CalcValue(currentAlbumValue) submenus (topic, foto)
+		def currentTopicValue(): Box[Topic] = {
+			val uri = S.uri.split("/")
+			if(uri.length>3)Full(Topic(Album(uri(2)),uri(3)))
+			else Empty
+		}
 
-  // based on the current location, extract the album out of potential sub-menus
-  def currentAlbumValue(): Box[Album] =
-    for {
-      loc <- S.location
-      res <- loc.currentValue match {
-        case Full(Foto(album, _)) => Full(album)
-        case Full(Topic(album, _)) => Full(album)
-        case _ => Empty
-      }
-    } yield res
+  // define the album menu which has topic-s as submenus
+  lazy val album = Menu.params[Album](
+		"Album",
+		Loc.LinkText(a => Text("Album " + a.name)),
+		{
+			case album :: Nil => Full(Album(album))
+			case _ => Empty
+		}, a => List(a.name)) / "gallery" / *  >>
+			Loc.CalcValue(currentAlbumValue) submenus(topic)
+			
+		def currentAlbumValue(): Box[Album] = {
+			val uri = S.uri.split("/")
+			if(uri.length>2)Full(Album(uri(2)))
+			else Empty
+		}
+
+
 }
+
