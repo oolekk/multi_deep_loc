@@ -15,6 +15,8 @@ import common._
 import scala.xml._
 import sitemap.Menu.ParamsMenuable._
 
+/* my comment */
+
 case class Album(name: String)
 
 case class Foto(album: Album, name: String)
