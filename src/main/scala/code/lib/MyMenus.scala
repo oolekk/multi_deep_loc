@@ -14,67 +14,77 @@ import http._
 import sitemap._
 import common._
 import scala.xml._
+import sitemap.Menu
 import sitemap.Menu.ParamsMenuable._
+import net.liftweb.util.NamedPF
 
-/* my comment */
+abstract class Item{}
 
-case class Album(name: String)
+case class Album(name: String) extends Item
 
-case class Topic(album: Album, name: String)
+case class Topic(album: Album, name: String) extends Item
 
-case class Foto(topic: Topic, name: String)
+case class Foto(topic: Topic, name: String) extends Item
 
 
-object AlbumMenu {
+object GalleryPage extends Loc[Item] {
 	
-  // define the foto menu with no further submenus
-  lazy val foto = Menu.params[Foto](
-		"Foto", 
-		Loc.LinkText(f => Text("Foto " + f.name)),
-		{
-			case album :: topic :: foto :: Nil =>
-				Full(Foto(Topic(Album(album), topic),foto))
-			case _ => Empty
-		}, f => List(f.topic.album.name, f.topic.name, f.name)) / "gallery" / * / * / *
+	def defaultValue = Empty
+	
+	val link = new Loc.Link[Item](List("gallery"), false)
+	
+	def calcLinkPath(in: Item): List[String] = currentValue match {
+		case Full(in: Album) => List("gallery", in.name)
+		case Full(in: Topic) => List("gallery", in.album.name, in.name)
+		case Full(in: Foto) => List("gallery", in.topic.album.name, in.topic.name, in.name)
+	}
+	
+	val name = "albumLoc"
+	val params = Nil
+	
+	val text = new Loc.LinkText(calcLinkText _)
+	def calcLinkText(in: Item): NodeSeq = currentValue match {
+		case Full(in:Album) => Text("Album " + in.name)
+		case Full(in:Topic) => Text("Topic " + in.name)
+		case Full(in:Foto) => Text("Foto " + in.name)
+	}
+	
+	override def rewrite: LocRewrite = Full(NamedPF(name) {
 		
-		def currentFotoValue(): Box[Foto] = {
-			val uri = S.uri.split("/")
-			if(uri.length>4)Full(Foto(Topic(Album(uri(2)),uri(3)),uri(4)))
-			else Empty
-		}
-
-  // define the topic menu which has foto-s as submenus
-  lazy val topic = Menu.params[Topic](
-		"Topic",
-		Loc.LinkText(t => Text("Topic " + t.name)),
-		{
-			case album :: topic :: Nil => Full(Topic(Album(album), topic))
-			case _ => Empty
-		}, t => List(t.album.name, t.name)) / "gallery" / * / *  >>
-			Loc.CalcValue(currentTopicValue) submenus(foto)
-
-		def currentTopicValue(): Box[Topic] = {
-			val uri = S.uri.split("/")
-			if(uri.length>3)Full(Topic(Album(uri(2)),uri(3)))
-			else Empty
-		}
-
-  // define the album menu which has topic-s as submenus
-  lazy val album = Menu.params[Album](
-		"Album",
-		Loc.LinkText(a => Text("Album " + a.name)),
-		{
-			case album :: Nil => Full(Album(album))
-			case _ => Empty
-		}, a => List(a.name)) / "gallery" / *  >>
-			Loc.CalcValue(currentAlbumValue) submenus(topic)
+		case RewriteRequest(ParsePath(
+			"gallery" :: album :: topic :: foto :: Nil, _, _, _), _, _) ⇒
+			(RewriteResponse("gallery" :: Nil, true), Foto(Topic(Album(album),topic),foto))
+		
+		case RewriteRequest(ParsePath(
+			"gallery" :: album :: topic :: Nil, _, _, _), _, _) ⇒
+			(RewriteResponse("gallery" :: Nil, true), Topic(Album(album),topic))
 			
-		def currentAlbumValue(): Box[Album] = {
-			val uri = S.uri.split("/")
-			if(uri.length>2)Full(Album(uri(2)))
-			else Empty
-		}
+		case RewriteRequest(ParsePath(
+			"gallery" :: album :: Nil, _, _, _), _, _) ⇒
+			(RewriteResponse("gallery" :: Nil, true), Album(album))
+			
+	})
+	
+	override def calcTemplate = currentValue match {
+		case Full(in:Album) =>	S.runTemplate("gallery" :: "album" :: Nil)
+		case Full(in:Topic) =>	S.runTemplate("gallery" :: "topic" :: Nil)
+		case Full(in:Foto) =>	S.runTemplate("gallery" :: "foto" :: Nil)
+	}
+	/*
+	override def menu = currentValue match {
+		 
+		  * 
+		case Full(in:Album) =>	???
+		case Full(in:Topic) =>	???
+		case Full(in:Foto) =>	  ???
 
+		 * what should I put here to have same menu rendering and 
+		 * nesting of Foto inside Topic inside Album via Menu.builder
+		 * that I got from the AlbumMenu code posted previously ? 
+		 
+	}
+	*/
 
 }
+
 
